@@ -100,7 +100,19 @@ public final class ImageImporter {
                 break;
             }
         }
-        if (!hasAlpha && opt.removeBackground()) removeBackground(px, w, h, opt.tolerance());
+        if (!hasAlpha && opt.removeBackground()) {
+            int[] backup = px.clone();
+            removeBackground(px, w, h, opt.tolerance());
+            // 이미지 전체가 한 가지 색이라 모두 지워졌으면 원본을 그대로 사용
+            boolean any = false;
+            for (int c : px) {
+                if ((c >>> 24) >= ALPHA_CUTOFF) {
+                    any = true;
+                    break;
+                }
+            }
+            if (!any) px = backup;
+        }
 
         for (int i = 0; i < px.length; i++) if ((px[i] >>> 24) < ALPHA_CUTOFF) px[i] = 0;
 

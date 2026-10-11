@@ -57,7 +57,7 @@ jobs:
           mkdir -p run/saves run/selftest
           cp -r server/world run/saves/selftest
           cp -r selftest/in run/selftest/in
-          printf 'onboardAccessibility:false\ntutorialStep:none\nrenderDistance:4\nsimulationDistance:5\nguiScale:2\npauseOnLostFocus:false\nsoundCategory_master:0.0\njoinedFirstServer:true\nskipMultiplayerWarning:true\n' > run/options.txt
+          printf 'onboardAccessibility:false\ntutorialStep:none\nrenderDistance:4\nsimulationDistance:5\nguiScale:2\npauseOnLostFocus:false\nsoundCategory_master:0.0\njoinedFirstServer:true\nskipMultiplayerWarning:true\nlang:ko_kr\n' > run/options.txt
           export BILLBOARD_SELFTEST=1 LIBGL_ALWAYS_SOFTWARE=1
           timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient --no-daemon > out/client-console.log 2>&1 || true
           cp run/logs/latest.log out/client.log || true

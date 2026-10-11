@@ -88,7 +88,7 @@ public final class ClientSelfTest {
                 pos = base.offset(0, 2, -5);
                 copyPos = base.offset(6, 2, -5);
                 sl.setBlock(pos, ModRegistry.BILLBOARD.get().defaultBlockState().setValue(BillboardBlock.FACING, Direction.SOUTH), Block.UPDATE_ALL);
-                sp.teleportTo(sl, base.getX() + 3.5, base.getY(), base.getZ() + 3.5, 180f, 0f);
+                sp.teleportTo(sl, base.getX() + 0.8, base.getY(), base.getZ() + 1.5, 180f, -20f);
             });
             case 100 -> {
                 check(mc.level.getBlockEntity(pos) instanceof BillboardBlockEntity, "billboard block entity exists on client");
