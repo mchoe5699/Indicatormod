@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": ["GDG", "DRD", "GDG"],
+  "key": {
+    "G": { "item": "minecraft:glass_pane" },
+    "D": { "item": "minecraft:glowstone_dust" },
+    "R": { "item": "minecraft:redstone" }
+  },
+  "result": { "item": "qwertys_billboard:billboard", "count": 4 }
+}

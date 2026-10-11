@@ -1,0 +1,126 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+
+// SVG(JSVG)·WebP/TIFF/TGA/PSD/ICO(TwelveMonkeys) 라이브러리를 jar 안에 함께 넣는다.
+jarJar.enable()
+
+minecraft {
+    mappings channel: mapping_channel, version: mapping_version
+    copyIdeResources = true
+
+    runs {
+        configureEach {
+            workingDirectory project.file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            mods {
+                "${mod_id}" {
+                    source sourceSets.main
+                }
+            }
+        }
+        client {
+            property 'forge.enabledGameTestNamespaces', mod_id
+        }
+        server {
+            property 'forge.enabledGameTestNamespaces', mod_id
+            args '--nogui'
+        }
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+repositories {
+    mavenCentral()
+}
+
+// 이미지 형식 라이브러리 목록 (그룹, 이름)
+def imageLibs = [
+        ['com.github.weisj', 'jsvg', jsvg_version],
+        ['com.twelvemonkeys.common', 'common-lang', twelvemonkeys_version],
+        ['com.twelvemonkeys.common', 'common-io', twelvemonkeys_version],
+        ['com.twelvemonkeys.common', 'common-image', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-core', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-metadata', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-webp', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-tiff', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-bmp', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-tga', twelvemonkeys_version],
+        ['com.twelvemonkeys.imageio', 'imageio-psd', twelvemonkeys_version],
+]
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+
+    imageLibs.each { lib ->
+        def (g, n, v) = lib
+        implementation "${g}:${n}:${v}"
+        minecraftLibrary("${g}:${n}:${v}") { transitive = false }
+        jarJar(group: g, name: n, version: "[${v},)") {
+            transitive = false
+            jarJar.pin(it, v)
+        }
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version: minecraft_version, minecraft_version_range: minecraft_version_range,
+            forge_version: forge_version, forge_version_range: forge_version_range,
+            loader_version_range: loader_version_range,
+            mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+            mod_authors: mod_authors, mod_description: mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    archiveClassifier = 'slim'
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+    finalizedBy 'reobfJar'
+}
+
+// 라이브러리가 포함된 jar 를 기본 산출물로 만든다 (build/libs/qwertys_billboard-<버전>.jar)
+tasks.named('jarJar').configure {
+    archiveClassifier = ''
+    manifest.from(tasks.jar.manifest)
+}
+
+reobf {
+    jarJar {}
+}
+
+tasks.jarJar.finalizedBy('reobfJarJar')
+tasks.named('build').configure { dependsOn 'jarJar' }
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
