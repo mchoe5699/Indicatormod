@@ -35,6 +35,11 @@ minecraft {
         }
         client {
             property 'forge.enabledGameTestNamespaces', mod_id
+            // CI 자동 동작 검사: BILLBOARD_SELFTEST=1 이면 selftest 월드로 바로 들어가 검사 후 종료
+            if (System.getenv('BILLBOARD_SELFTEST') != null) {
+                property 'qwertys_billboard.selftest', 'true'
+                args '--quickPlaySingleplayer', 'selftest'
+            }
         }
         server {
             property 'forge.enabledGameTestNamespaces', mod_id

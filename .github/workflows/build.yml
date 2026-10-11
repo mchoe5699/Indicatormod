@@ -1,9 +1,13 @@
-name: Build
+name: Build & Test
 
 on:
   push:
+    branches: [ main ]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -22,10 +26,61 @@ jobs:
         run: |
           chmod +x ./gradlew
           ./gradlew build --no-daemon
+          ls -la build/libs
+          mkdir -p out
+          cp build/libs/qwertys_billboard-*.jar out/
+          rm -f out/*-slim.jar
+          unzip -l out/qwertys_billboard-*.jar | tee out/jar-contents.txt
+
+      # 실제 Forge 서버에 jar 를 넣어 구동 (내장 라이브러리 로딩 포함 검사) + 검사용 평지 월드 생성
+      - name: Dedicated server test
+        run: |
+          set -x
+          FORGE=$(grep '^forge_version=' gradle.properties | cut -d= -f2)
+          mkdir -p server && cd server
+          curl -fsSL -o installer.jar "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-${FORGE}/forge-1.20.1-${FORGE}-installer.jar"
+          java -jar installer.jar --installServer > install.log 2>&1
+          mkdir -p mods && cp ../out/qwertys_billboard-*.jar mods/
+          echo "eula=true" > eula.txt
+          printf 'level-type=minecraft\\:flat\nlevel-name=world\nonline-mode=false\nspawn-protection=0\ngenerate-structures=false\n' > server.properties
+          (timeout 600 bash -c 'until grep -q "Done (" logs/latest.log 2>/dev/null; do sleep 3; done'; sleep 5; echo stop) | timeout 900 ./run.sh nogui > server-console.log 2>&1 || true
+          cp logs/latest.log ../out/server.log || cp server-console.log ../out/server.log
+          grep -q "Done (" ../out/server.log
+          ! grep -E "qwertys_billboard.*(ERROR|Exception)|Failed to load|ModLoadingException" ../out/server.log
+          test -f config/qwertys_billboard-common.toml
+
+      # 가상 화면에서 실제 클라이언트로 전광판 설치·이미지 불러오기·분리·복사/회전 검사 + 스크린샷
+      - name: Client self test
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1-mesa-dri mesa-utils > /dev/null
+          mkdir -p run/saves run/selftest
+          cp -r server/world run/saves/selftest
+          cp -r selftest/in run/selftest/in
+          printf 'onboardAccessibility:false\ntutorialStep:none\nrenderDistance:4\nsimulationDistance:5\nguiScale:2\npauseOnLostFocus:false\nsoundCategory_master:0.0\njoinedFirstServer:true\nskipMultiplayerWarning:true\n' > run/options.txt
+          export BILLBOARD_SELFTEST=1 LIBGL_ALWAYS_SOFTWARE=1
+          timeout 1500 xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClient --no-daemon > out/client-console.log 2>&1 || true
+          cp run/logs/latest.log out/client.log || true
+          cp -r run/selftest/out out/selftest || true
+          cat out/selftest/result.txt
+          grep -q "RESULT: ALL PASSED" out/selftest/result.txt
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: qwertys_billboard
-          path: |
-            build/libs/*.jar
-            !build/libs/*-slim.jar
+          path: out/
+
+      # 결과(jar, 로그, 스크린샷)를 builds 브랜치에 저장
+      - name: Publish to builds branch
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/pub && cp -r out/. /tmp/pub/ 2>/dev/null || true
+          echo "${{ github.sha }} ${{ job.status }}" > /tmp/pub/BUILD_INFO.txt
+          cd /tmp/pub
+          git init -q -b builds
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "build ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" builds
