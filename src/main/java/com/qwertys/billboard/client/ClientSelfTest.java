@@ -42,7 +42,7 @@ import java.util.stream.Stream;
 public final class ClientSelfTest {
     private static final boolean ENABLED = Boolean.getBoolean("qwertys_billboard.selftest");
     private static int tick = -1;
-    private static BlockPos pos, copyPos;
+    private static BlockPos pos, copyPos, wallPos;
     private static final List<String> LOG = new ArrayList<>();
     private static boolean failed;
 
@@ -208,7 +208,49 @@ public final class ClientSelfTest {
                 });
             }
             case 480 -> shot(mc, "3_copy_rotated.png");
-            case 500 -> finish(mc);
+            // 3D 옆면 검사: 부드러운 테두리(안티앨리어싱)가 있는 흰 글자를 돌벽 앞에 3D 로 세우고 옆에서 본다
+            case 500 -> server.execute(() -> {
+                ServerPlayer sp = server.getPlayerList().getPlayers().get(0);
+                ServerLevel sl = sp.serverLevel();
+                wallPos = pos.offset(-12, -2, 0);
+                for (int dx = -3; dx <= 3; dx++)
+                    for (int dy = 0; dy <= 3; dy++)
+                        sl.setBlock(wallPos.offset(dx, dy, -1), net.minecraft.world.level.block.Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+                sl.setBlock(wallPos.offset(0, 1, 0), ModRegistry.BILLBOARD.get().defaultBlockState().setValue(BillboardBlock.FACING, Direction.SOUTH), Block.UPDATE_ALL);
+            });
+            case 530 -> {
+                BlockPos bp = wallPos.offset(0, 1, 0);
+                ImageImporter.Result r = ImageImporter.load(dir().resolve("aa/aa_text.png"), new ImageImporter.Options(128, false, 40));
+                DisplayPart p = new DisplayPart();
+                p.setImage(r.png(), r.width(), r.height());
+                p.name = "aa_text";
+                p.size = 3f;
+                p.mode3d = true;
+                p.depth = 0.4f;
+                p.y = 0.6f;
+                p.z = -0.3f;
+                ListTag list = new ListTag();
+                list.add(p.save(new CompoundTag(), true));
+                CompoundTag op = new CompoundTag();
+                op.put("Parts", list);
+                EditSender.send(bp, EditOps.ADD_PARTS, op);
+                server.execute(() -> {
+                    ServerPlayer sp = server.getPlayerList().getPlayers().get(0);
+                    sp.teleportTo(sp.serverLevel(), bp.getX() + 2.6, bp.getY() - 0.4, bp.getZ() + 1.6, 120f, 10f);
+                });
+            }
+            case 600 -> {
+                BillboardBlockEntity be = (BillboardBlockEntity) mc.level.getBlockEntity(wallPos.offset(0, 1, 0));
+                check(be != null && be.parts.size() == 1 && be.parts.get(0).mode3d, "anti-aliased 3D text placed");
+                shot(mc, "4_3d_side.png");
+            }
+            case 620 -> server.execute(() -> {
+                ServerPlayer sp = server.getPlayerList().getPlayers().get(0);
+                BlockPos bp = wallPos.offset(0, 1, 0);
+                sp.teleportTo(sp.serverLevel(), bp.getX() - 1.2, bp.getY() + 0.2, bp.getZ() + 2.2, -150f, 15f);
+            });
+            case 680 -> shot(mc, "5_3d_side2.png");
+            case 700 -> finish(mc);
             default -> {
             }
         }

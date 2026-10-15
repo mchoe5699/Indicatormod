@@ -27,15 +27,21 @@ public final class ClientImageCache {
     public static final class Entry {
         public final ResourceLocation texture;
         public final ResourceLocation mask;
+        /** 3D 용: 채워진 픽셀은 완전 불투명, 나머지는 완전 투명 (옆면이 비쳐 보이지 않도록) */
+        public final ResourceLocation solidTexture;
+        public final ResourceLocation solidMask;
         public final int width, height;
         /** 옆면 목록: [종류, 줄 번호, 시작, 끝] × n. 종류 0=위 1=아래 2=왼쪽 3=오른쪽 */
         public final int[] sides;
         long lastUsed;
         final boolean failed;
 
-        Entry(ResourceLocation texture, ResourceLocation mask, int width, int height, int[] sides, boolean failed) {
+        Entry(ResourceLocation texture, ResourceLocation mask, ResourceLocation solidTexture, ResourceLocation solidMask,
+              int width, int height, int[] sides, boolean failed) {
             this.texture = texture;
             this.mask = mask;
+            this.solidTexture = solidTexture;
+            this.solidMask = solidMask;
             this.width = width;
             this.height = height;
             this.sides = sides;
@@ -61,30 +67,36 @@ public final class ClientImageCache {
 
     private static Entry create(byte[] png) {
         NativeImage img = null;
-        NativeImage mask = null;
+        NativeImage mask = null, solid = null, solidMask = null;
         try {
             img = NativeImage.read(new ByteArrayInputStream(png));
             int w = img.getWidth(), h = img.getHeight();
             mask = new NativeImage(w, h, false);
-            boolean[] solid = new boolean[w * h];
+            solid = new NativeImage(w, h, false);
+            solidMask = new NativeImage(w, h, false);
+            boolean[] filled = new boolean[w * h];
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
                     int c = img.getPixelRGBA(x, y);       // ABGR 순서지만 알파는 최상위 바이트로 동일
                     int a = c >>> 24;
+                    boolean f = a >= SOLID_ALPHA;
+                    filled[y * w + x] = f;
                     mask.setPixelRGBA(x, y, (a << 24) | 0x00FFFFFF);
-                    solid[y * w + x] = a >= SOLID_ALPHA;
+                    solid.setPixelRGBA(x, y, f ? (0xFF000000 | (c & 0x00FFFFFF)) : 0);
+                    solidMask.setPixelRGBA(x, y, f ? 0xFFFFFFFF : 0);
                 }
             }
-            int[] sides = buildSides(solid, w, h);
+            int[] sides = buildSides(filled, w, h);
             TextureManager tm = Minecraft.getInstance().getTextureManager();
             ResourceLocation tex = tm.register(QwertysBillboard.MODID, new DynamicTexture(img));
             ResourceLocation mk = tm.register(QwertysBillboard.MODID + "_mask", new DynamicTexture(mask));
-            return new Entry(tex, mk, w, h, sides, false);
+            ResourceLocation st = tm.register(QwertysBillboard.MODID + "_solid", new DynamicTexture(solid));
+            ResourceLocation sm = tm.register(QwertysBillboard.MODID + "_solid_mask", new DynamicTexture(solidMask));
+            return new Entry(tex, mk, st, sm, w, h, sides, false);
         } catch (Exception ex) {
             QwertysBillboard.LOGGER.warn("Failed to load billboard image: {}", ex.toString());
-            if (img != null) img.close();
-            if (mask != null) mask.close();
-            return new Entry(null, null, 1, 1, new int[0], true);
+            for (NativeImage n : new NativeImage[]{img, mask, solid, solidMask}) if (n != null) n.close();
+            return new Entry(null, null, null, null, 1, 1, new int[0], true);
         }
     }
 
@@ -148,6 +160,8 @@ public final class ClientImageCache {
         if (e.failed) return;
         tm.release(e.texture);
         tm.release(e.mask);
+        tm.release(e.solidTexture);
+        tm.release(e.solidMask);
     }
 
     private static final class IntList {

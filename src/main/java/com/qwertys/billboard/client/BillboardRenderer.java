@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -104,7 +105,13 @@ public class BillboardRenderer implements BlockEntityRenderer<BillboardBlockEnti
 
     private static void renderPart(DisplayPart p, ClientImageCache.Entry img, PoseStack ps, MultiBufferSource buffers, int light, float time) {
         ColorMode mode = p.colorMode;
-        VertexConsumer vc = buffers.getBuffer(RenderType.entityTranslucentCull(mode.useMask ? img.mask : img.texture));
+        // 3D 는 꽉 찬 입체로 보여야 하므로 반투명 테두리 픽셀이 없는 불투명 텍스처를 쓴다.
+        // 불투명도 100% 이면 컷아웃(깊이 정렬 문제 없음), 아니면 반투명으로 그린다.
+        ResourceLocation tex = p.mode3d
+                ? (mode.useMask ? img.solidMask : img.solidTexture)
+                : (mode.useMask ? img.mask : img.texture);
+        boolean opaque3d = p.mode3d && p.opacity >= 0.999f;
+        VertexConsumer vc = buffers.getBuffer(opaque3d ? RenderType.entityCutout(tex) : RenderType.entityTranslucentCull(tex));
         PoseStack.Pose pose = ps.last();
         Matrix4f m = pose.pose();
         Matrix3f n = pose.normal();
@@ -147,7 +154,7 @@ public class BillboardRenderer implements BlockEntityRenderer<BillboardBlockEnti
             switch (type) {
                 case 0, 1 -> { // 위 / 아래
                     float x0 = a * pix - hw, x1 = b * pix - hw;
-                    float u0 = a / (float) w, u1 = b / (float) w;
+                    float u0 = (a + 0.02f) / w, u1 = (b - 0.02f) / w;
                     float v = (line + 0.5f) / h;
                     int c0 = color.at(a), c1 = color.at(b);
                     if (type == 0) {
@@ -166,7 +173,7 @@ public class BillboardRenderer implements BlockEntityRenderer<BillboardBlockEnti
                 }
                 default -> { // 왼쪽 / 오른쪽
                     float yt = hh - a * pix, yb = hh - b * pix;
-                    float vt = a / (float) h, vb = b / (float) h;
+                    float vt = (a + 0.02f) / h, vb = (b - 0.02f) / h;
                     float u = (line + 0.5f) / w;
                     int c = color.at(line + 0.5f);
                     if (type == 2) {
