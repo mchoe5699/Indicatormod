@@ -1,0 +1,26 @@
+PASS billboard block entity exists on client
+PASS load arrow.svg -> 128x71 958B
+PASS load block.bmp -> 76x44 175B
+PASS load dot.tga -> 57x57 298B
+PASS load hex.webp -> 121x104 1854B
+PASS load icon.ico -> 57x57 298B
+PASS load photo.jpg -> 128x128 11112B
+PASS load rect.tiff -> 100x60 294B
+PASS load split.png -> 128x57 1236B
+PASS load tri.gif -> 61x61 408B
+sent add_parts bytes=16364 parts=9
+PASS client received 9 parts (got 9)
+PASS split.png splits into 3 (got 3)
+PASS after split 11 parts (got 11)
+PASS 3D + fine yaw synced
+PASS 5mm size synced
+PASS block light 15
+screenshot 1_world.png: 1_world.png로 스크린샷을 저장했습니다
+screenshot 2_editor.png: 2_editor.png로 스크린샷을 저장했습니다
+PASS NBT copy keeps all parts
+PASS rotated copy faces WEST
+screenshot 3_copy_rotated.png: 3_copy_rotated.png로 스크린샷을 저장했습니다
+PASS anti-aliased 3D text placed
+screenshot 4_3d_side.png: 4_3d_side.png로 스크린샷을 저장했습니다
+screenshot 5_3d_side2.png: 5_3d_side2.png로 스크린샷을 저장했습니다
+RESULT: ALL PASSED
